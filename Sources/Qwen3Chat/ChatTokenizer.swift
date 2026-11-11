@@ -139,16 +139,26 @@ public final class ChatTokenizer: @unchecked Sendable {
             return [id]
         }
 
-        // Simple BPE encoding
-        var words = tokenizeToWords(text)
-        var allTokens: [Int] = []
+        let bpeChars = text.utf8.compactMap { Self.byteToUnicode[$0].map { String($0) } }
+        if bpeChars.isEmpty { return [] }
 
-        for word in words {
-            let wordTokens = bpeEncode(word)
-            allTokens.append(contentsOf: wordTokens)
+        var symbols = bpeChars
+        while symbols.count > 1 {
+            var bestRank = Int.max
+            var bestIdx = -1
+            for i in 0..<(symbols.count - 1) {
+                let pair = "\(symbols[i]) \(symbols[i + 1])"
+                if let rank = bpeMergeRanks[pair], rank < bestRank {
+                    bestRank = rank
+                    bestIdx = i
+                }
+            }
+            if bestIdx < 0 { break }
+            let merged = symbols[bestIdx] + symbols[bestIdx + 1]
+            symbols.replaceSubrange(bestIdx...bestIdx + 1, with: [merged])
         }
 
-        return allTokens
+        return symbols.compactMap { tokenToId[$0] }
     }
 
     /// Split text into BPE-ready words (GPT-2/Qwen style).
@@ -270,7 +280,7 @@ public final class ChatTokenizer: @unchecked Sendable {
     ///
     /// Maps Unicode characters back to the byte values they represent in
     /// GPT-2/Qwen byte-level BPE vocabulary.
-    private static let unicodeToByte: [Character: UInt8] = {
+    private static let (byteToUnicode, unicodeToByte): ([UInt8: Character], [Character: UInt8]) = {
         // Build the standard GPT-2 bytes_to_unicode table
         var byteToUnicode: [UInt8: Character] = [:]
         var n = 0
@@ -296,11 +306,11 @@ public final class ChatTokenizer: @unchecked Sendable {
         }
 
         // Reverse the mapping: unicode char → byte value
-        var result: [Character: UInt8] = [:]
+        var unicodeToByte: [Character: UInt8] = [:]
         for (byte, char) in byteToUnicode {
-            result[char] = byte
+            unicodeToByte[char] = byte
         }
-        return result
+        return (byteToUnicode, unicodeToByte)
     }()
 
     /// Check if a token ID is a special token (should not appear in output).
