@@ -76,7 +76,26 @@ enum ChatTemplate {
     ) -> [Int] {
         var tokens: [Int] = []
 
-        for message in messages {
+        let lastIndex = messages.count - 1
+        for (i, message) in messages.enumerated() {
+            if i == lastIndex && message.role == .assistant {
+                // Assistant prefill: emit assistant generation prompt + prefilled text without imEnd
+                tokens.append(imStartId)
+                tokens.append(contentsOf: tokenizer.encode("assistant"))
+                tokens.append(newlineId)
+
+                if !enableThinking {
+                    let doubleNewline = tokenizer.encode("\n\n")
+                    tokens.append(thinkStartId)
+                    tokens.append(contentsOf: doubleNewline)
+                    tokens.append(thinkEndId)
+                    tokens.append(contentsOf: doubleNewline)
+                }
+
+                tokens.append(contentsOf: tokenizer.encode(message.content))
+                return tokens
+            }
+
             tokens.append(imStartId)
             tokens.append(contentsOf: tokenizer.encode(message.role.rawValue))
             tokens.append(newlineId)

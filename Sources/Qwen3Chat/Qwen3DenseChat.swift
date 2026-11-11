@@ -80,15 +80,22 @@ public final class Qwen3DenseChat: @unchecked Sendable {
 
     private func encodeChat(_ messages: [ChatMessage]) -> [Int] {
         var ids: [Int] = []
-        func turn(_ role: String, _ content: String) {
+        let lastIndex = messages.count - 1
+        for (i, m) in messages.enumerated() {
+            if i == lastIndex && m.role == .assistant {
+                ids.append(imStartId)
+                ids.append(contentsOf: tokenizer.encode("assistant"))
+                ids.append(newlineId)
+                ids.append(contentsOf: tokenizer.encode(m.content))
+                return ids
+            }
             ids.append(imStartId)
-            ids.append(contentsOf: tokenizer.encode(role))
+            ids.append(contentsOf: tokenizer.encode(m.role.rawValue))
             ids.append(newlineId)
-            ids.append(contentsOf: tokenizer.encode(content))
+            ids.append(contentsOf: tokenizer.encode(m.content))
             ids.append(imEndId)
             ids.append(newlineId)
         }
-        for m in messages { turn(m.role.rawValue, m.content) }
         ids.append(imStartId)
         ids.append(contentsOf: tokenizer.encode("assistant"))
         ids.append(newlineId)
